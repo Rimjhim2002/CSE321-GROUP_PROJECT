@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
 
     /* TODO 9: Mark allocated inode in inode bitmap. */
     /* TODO: STUDENT CODE START */
-
+    set_bit(inode_bitmap, free_inode - 1);
     /* TODO: STUDENT CODE END */
     fseek(image, INODE_BITMAP_BLOCK * BLOCK_SIZE, SEEK_SET);
     fwrite(inode_bitmap, BLOCK_SIZE, 1, image);
