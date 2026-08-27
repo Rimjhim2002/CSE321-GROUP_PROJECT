@@ -36,6 +36,17 @@ int filename_exists(FILE *image, const char *filename)
     dirent_t entry;
     /* TODO 3: Search root directory entries for filename. */
     /* TODO: STUDENT CODE START */
+    fseek(image, ROOT_DATA_BLOCK * BLOCK_SIZE, SEEK_SET);
+
+    for (size_t i = 0; i < BLOCK_SIZE / sizeof(dirent_t); i++) {
+      if (fread(&entry, sizeof(dirent_t), 1, image) != 1) {
+        break;
+    }
+
+      if (entry.inode_no != 0 && strcmp(entry.name, filename) == 0) {
+        return 1;
+    }
+}
 
     /* TODO: STUDENT CODE END */
     return 0;
@@ -46,6 +57,19 @@ int find_free_directory_entry(FILE *image)
     dirent_t entry;
     /* TODO 4: Search entries 2..63; free entry has inode_no == 0. */
     /* TODO: STUDENT CODE START */
+    fseek(image,
+      (long)ROOT_DATA_BLOCK * BLOCK_SIZE + 2L * sizeof(dirent_t),
+      SEEK_SET);
+
+    for (size_t i = 2; i < BLOCK_SIZE / sizeof(dirent_t); i++) {
+      if (fread(&entry, sizeof(dirent_t), 1, image) != 1) {
+        break;
+    }
+
+      if (entry.inode_no == 0) {
+        return (int)i;
+    }
+}
 
     /* TODO: STUDENT CODE END */
     return -1;
@@ -115,12 +139,47 @@ int main(int argc, char *argv[])
 
     /* TODO 7: Copy source contents into allocated blocks using zero-filled buffers. */
     /* TODO: STUDENT CODE START */
+    for (int i = 0; i < required_blocks; i++) {
+    unsigned char buffer[BLOCK_SIZE] = {0};
+
+    size_t bytes_read = fread(buffer, 1, BLOCK_SIZE, source);
+
+     if (ferror(source)) {
+        printf("Error: could not read source file.\n");
+        fclose(source);
+        fclose(image);
+        return 1;
+    }
+
+     if (fseek(image, (long)allocated_blocks[i] * BLOCK_SIZE, SEEK_SET) != 0) {
+        printf("Error: could not seek to data block.\n");
+        fclose(source);
+        fclose(image);
+        return 1;
+    }
+
+     if (fwrite(buffer, 1, BLOCK_SIZE, image) != BLOCK_SIZE) {
+        printf("Error: could not write file data.\n");
+        fclose(source);
+        fclose(image);
+        return 1;
+    }
+
+    (void)bytes_read;
+}
 
     /* TODO: STUDENT CODE END */
 
     /* TODO 8: Initialize new file inode and its direct pointers. */
     memset(&new_inode, 0, sizeof(new_inode));
     /* TODO: STUDENT CODE START */
+    new_inode.type = TYPE_FILE;
+    new_inode.links = 1;
+    new_inode.size = (uint32_t)file_size;
+
+    for (int i = 0; i < required_blocks; i++) {
+       new_inode.direct[i] = (uint32_t)allocated_blocks[i];
+    }
 
     /* TODO: STUDENT CODE END */
     fseek(image, inode_offset(free_inode), SEEK_SET);
@@ -138,6 +197,11 @@ int main(int argc, char *argv[])
     /* TODO 10: Create directory entry; ensure name is null-terminated. */
     memset(&new_entry, 0, sizeof(new_entry));
     /* TODO: STUDENT CODE START */
+        new_entry.inode_no = (uint32_t)free_inode;
+    new_entry.type = TYPE_FILE;
+
+    strncpy(new_entry.name, source_name, sizeof(new_entry.name) - 1);
+    new_entry.name[sizeof(new_entry.name) - 1] = '\0';
 
     /* TODO: STUDENT CODE END */
     {
@@ -151,6 +215,7 @@ int main(int argc, char *argv[])
 
     /* TODO 11: Increase root_inode.size by sizeof(dirent_t). */
     /* TODO: STUDENT CODE START */
+    root_inode.size += sizeof(dirent_t);
 
     /* TODO: STUDENT CODE END */
     fseek(image, inode_offset(ROOT_INODE), SEEK_SET);
